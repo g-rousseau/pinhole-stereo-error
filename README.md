@@ -7,6 +7,10 @@ The two cameras are supposed coplanar and aligned along the baseline (such that 
 
 ![alt text](https://github.com/g-rousseau/pinhole-stereo-error/blob/main/example_1.png)
 
+* Also, approximate the minimum detectable obstacle size as function of depth
+
+![alt text](https://github.com/g-rousseau/pinhole-stereo-error/blob/main/example_1_2.png)
+
 * A stereo matching accuracy and a disparity uncertainty can be added into the model
 
 ![alt text](https://github.com/g-rousseau/pinhole-stereo-error/blob/main/example_2.png)
