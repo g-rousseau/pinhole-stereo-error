@@ -24,6 +24,7 @@ def main():
 
     # Plot the stereo pair accuracy
     stereo_model.plot_depth_accuracy(USE_TEX)
+    stereo_model.plot_min_obstacle_size(USE_TEX)
 
     # Example 2: subpixel matching resolution: 0.1px, typical disparity error: 1.5px
     ####################################################################################
@@ -40,6 +41,7 @@ def main():
 
     # Plot the stereo pair accuracy
     stereo_model.plot_depth_accuracy(USE_TEX)
+    stereo_model.plot_min_obstacle_size(USE_TEX)
 
 
 ########################################################################################
@@ -67,24 +69,25 @@ class PinholeStereoCameraConfig(typing.NamedTuple):
 class PinholeStereoCameraModel:
     """Simple pinhole stereo camera model."""
 
+    METER_TO_MILIMETER = 1000
+
     def __init__(self, config: PinholeStereoCameraConfig) -> None:
         self._config = config
 
         # camera focal length [pixels]
         self._focal_px = config.definition / (2.0 * math.tan(config.fov / 2.0))
 
-    def plot_depth_accuracy(self, use_tex=False) -> None:
-        METER_TO_MILIMETER = 1000
+    def plot_depth_accuracy(self, use_tex: bool = False) -> None:
+        """Plot the stereo pair accuracy vs. depth."""
         POINT_COUNT = 10000
 
         # Generate data
-        min_depth = self._disparity_to_depth(self._config.definition)
-        max_depth = self._disparity_to_depth(1.0)
+        true_depth = self._generate_depth_vector(POINT_COUNT)
 
-        true_depth = np.linspace(min_depth, max_depth, POINT_COUNT)
         continuous_depth_inf, continuous_depth_sup = self._continuous_depth_bounds(
             true_depth
         )
+
         discrete_depth = self._depth_to_discrete_depth(true_depth)
         discrete_depth_inf, discrete_depth_sup = self._discretized_depth_bounds(
             true_depth
@@ -177,7 +180,7 @@ class PinholeStereoCameraModel:
                 f"°, definition "
                 f"{self._config.definition}"
                 f"px, baseline "
-                f"{round(self._config.baseline * METER_TO_MILIMETER)}"
+                f"{round(self._config.baseline * self.METER_TO_MILIMETER)}"
                 f"mm, focal "
                 f"{round(self._focal_px, 1)}"
                 f"px, matching resolution "
@@ -193,7 +196,7 @@ class PinholeStereoCameraModel:
                 f"°, definition "
                 f"{self._config.definition}"
                 f"px, baseline "
-                f"{round(self._config.baseline * METER_TO_MILIMETER)}"
+                f"{round(self._config.baseline * self.METER_TO_MILIMETER)}"
                 f"mm, focal "
                 f"{round(self._focal_px, 1)}"
                 f"px, matching resolution "
@@ -204,6 +207,73 @@ class PinholeStereoCameraModel:
             )
 
         plt.show()
+
+    def plot_min_obstacle_size(self, use_tex: bool = False) -> None:
+        """Plot the min. detectable obstacle size on the optical center vs. depth."""
+        POINT_COUNT = 1000
+
+        angular_resolution = self._config.fov / self._config.definition
+        depth = self._generate_depth_vector(POINT_COUNT)
+        pixel_projected_size = depth * np.tan(angular_resolution)
+        min_obstacle_size = 2 * pixel_projected_size
+
+        if use_tex:
+            plt.rc("text", usetex=True)
+            plt.rc("font", family="serif")
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+
+        ax.plot(depth, min_obstacle_size)
+
+        ax.grid()
+        ax.set_xlim(left=0, right=np.max(depth))
+        ax.set_ylim(bottom=0, top=np.max(min_obstacle_size))
+        if use_tex:
+            ax.set_title(
+                r"\textbf{Approximate minimum detectable obstacle size at optical "
+                r"center (Shanon criterion)} - FOV "
+                f"{round(math.degrees(self._config.fov))}"
+                f"°, definition "
+                f"{self._config.definition}"
+                f"px, baseline "
+                f"{round(self._config.baseline * self.METER_TO_MILIMETER)}"
+                f"mm, focal "
+                f"{round(self._focal_px, 1)}"
+                f"px, matching resolution "
+                f"{self._config.matching_resolution}"
+                f"px, disparity uncertainty "
+                f"{self._config.disparity_uncertainty}"
+                f"px"
+            )
+            ax.set_xlabel(r"depth $d$ (m)")
+            ax.set_ylabel(r"smallest obstacle size $s_\mathrm{min}$ (m)")
+        else:
+            ax.set_xlabel(f"depth (m)")
+            ax.set_ylabel(f"smallest obstacle size (m)")
+            ax.set_title(
+                f"Approximate minimum detectable obstacle size at optical center"
+                f" (Shanon criterion) - FOV"
+                f"{round(math.degrees(self._config.fov))}"
+                f"°, definition "
+                f"{self._config.definition}"
+                f"px, baseline "
+                f"{round(self._config.baseline * self.METER_TO_MILIMETER)}"
+                f"mm, focal "
+                f"{round(self._focal_px, 1)}"
+                f"px, matching resolution "
+                f"{self._config.matching_resolution}"
+                f"px, disparity uncertainty "
+                f"{self._config.disparity_uncertainty}"
+                f"px"
+            )
+
+        plt.show()
+
+    def _generate_depth_vector(self, point_count: int) -> NDArray[Shape["*"], Float]:
+        min_depth = self._disparity_to_depth(self._config.definition)
+        max_depth = self._disparity_to_depth(1.0)
+
+        return np.linspace(min_depth, max_depth, point_count)
 
     def _depth_to_disparity(
         self, depth: float | NDArray[Shape["*"], Float]
@@ -220,6 +290,7 @@ class PinholeStereoCameraModel:
             np.round(self._depth_to_disparity(depth) / self._config.matching_resolution)
             * self._config.matching_resolution
         )
+
         return self._disparity_to_depth(discrete_disparity)
 
     def _continuous_depth_bounds(
